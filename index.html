@@ -30,15 +30,17 @@
 </main>
 <script>
 let ctx=null, selectedFile=null, selectedDataUrl='', nextId=1, focusedGran=null, focusedLoop=null;
-let master=null;
+let master=null, audioReady=false;
 const gran=[], loops=[], notes=new Map(), drag={gran:new Map(), loop:new Map()}, timers=new Map(), loopNodes=new Map();
 const N=['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
 const E={file:gid('file'),fileName:gid('fileName'),makeGran:gid('makeGran'),makeLoop:gid('makeLoop'),makeKeys:gid('makeKeys'),test:gid('test'),granList:gid('granList'),loopList:gid('loopList'),granCount:gid('granCount'),loopCount:gid('loopCount'),keyName:gid('keyName'),keyCode:gid('keyCode'),keyMode:gid('keyMode'),keyControls:gid('keyControls'),keyboard:gid('keyboard')};
 const keys={name:'---',dataUrl:'',buffer:null,volume:.8,transpose:0,filter:7000,mode:'fixed'};
 function gid(id){return document.getElementById(id)}
 function log(t){E.fileName.textContent=t}
-function ac(){if(!ctx){const AC=window.AudioContext||window.webkitAudioContext;if(!AC){log('Audio no disponible');return null}ctx=new AC();master=ctx.createGain();master.gain.value=1;master.connect(ctx.destination)}return ctx}
-async function resume(){const c=ac();if(!c)return false;if(c.state!=='running')await c.resume();return c.state==='running'}
+function ac(){if(!ctx){const AC=window.AudioContext||window.webkitAudioContext;if(!AC){log('Audio no disponible');return null}ctx=new AC({latencyHint:'interactive'});master=ctx.createGain();master.gain.value=1;master.connect(ctx.destination)}return ctx}
+async function unlockAudio(){const c=ac();if(!c)return false;if(c.state!=='running')await c.resume();if(!audioReady&&c.state==='running'){const b=c.createBuffer(1,1,c.sampleRate),s=c.createBufferSource();s.buffer=b;s.connect(master);s.start(0);audioReady=true}return c.state==='running'}
+async function resume(){return unlockAudio()}
+['pointerdown','touchend','click'].forEach(ev=>document.addEventListener(ev,()=>{unlockAudio().catch(()=>{})},{once:true,passive:true}));
 async function beep(){const c=await resume();if(!c)return; const now=ctx.currentTime,o=ctx.createOscillator(),g=ctx.createGain();o.type='sine';o.frequency.value=880;g.gain.setValueAtTime(0,now);g.gain.linearRampToValueAtTime(1,now+.03);g.gain.setValueAtTime(1,now+.7);g.gain.linearRampToValueAtTime(0,now+1);o.connect(g);g.connect(ctx.destination);o.start(now);o.stop(now+1.05);log('test enviado '+ctx.state+' t='+ctx.currentTime.toFixed(3))}
 E.test.onclick=async()=>beep();
 E.file.onchange=async()=>{selectedFile=E.file.files[0]||null;selectedDataUrl='';if(!selectedFile)return;E.fileName.textContent=selectedFile.name;E.makeGran.disabled=E.makeLoop.disabled=E.makeKeys.disabled=false};
