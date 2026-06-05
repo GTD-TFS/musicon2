@@ -39,8 +39,8 @@ function gid(id){return document.getElementById(id)}
 function log(t){E.fileName.textContent=t}
 function ac(){if(!ctx){const AC=window.AudioContext||window.webkitAudioContext;if(!AC){log('Audio no disponible');return null}ctx=new AC();master=ctx.createGain();master.gain.value=1;master.connect(ctx.destination)}return ctx}
 async function resume(){const c=ac();if(!c)return false;if(c.state!=='running')await c.resume();return c.state==='running'}
-function beep(){const c=ac();if(!c)return; if(c.state!=='running')c.resume(); const now=c.currentTime,o=c.createOscillator(),g=c.createGain();o.type='sine';o.frequency.value=880;g.gain.setValueAtTime(0,now);g.gain.linearRampToValueAtTime(1,now+.03);g.gain.setValueAtTime(1,now+.7);g.gain.linearRampToValueAtTime(0,now+1);o.connect(g);g.connect(c.destination);o.start(now);o.stop(now+1.05);log('test enviado '+c.state)}
-E.test.onclick=()=>beep();
+async function beep(){const c=await resume();if(!c)return; const now=ctx.currentTime,o=ctx.createOscillator(),g=ctx.createGain();o.type='sine';o.frequency.value=880;g.gain.setValueAtTime(0,now);g.gain.linearRampToValueAtTime(1,now+.03);g.gain.setValueAtTime(1,now+.7);g.gain.linearRampToValueAtTime(0,now+1);o.connect(g);g.connect(ctx.destination);o.start(now);o.stop(now+1.05);log('test enviado '+ctx.state+' t='+ctx.currentTime.toFixed(3))}
+E.test.onclick=async()=>beep();
 E.file.onchange=async()=>{selectedFile=E.file.files[0]||null;selectedDataUrl='';if(!selectedFile)return;E.fileName.textContent=selectedFile.name;E.makeGran.disabled=E.makeLoop.disabled=E.makeKeys.disabled=false};
 async function fileDataUrl(file){return new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(r.result);r.onerror=rej;r.readAsDataURL(file)})}
 async function decodeSelected(){if(!selectedFile)return null;if(!await resume())return null;const arr=await selectedFile.arrayBuffer();const buf=await ctx.decodeAudioData(arr.slice(0));if(!selectedDataUrl)selectedDataUrl=await fileDataUrl(selectedFile);return{name:selectedFile.name,dataUrl:selectedDataUrl,buffer:buf}}
