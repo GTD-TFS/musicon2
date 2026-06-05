@@ -147,7 +147,21 @@ function ensureAudio() {
     master.connect(ctx.destination);
   }
   if (ctx.state === 'suspended') ctx.resume();
+  unlockAudio();
   return true;
+}
+
+function unlockAudio() {
+  if (!ctx || !master) return;
+  try {
+    const source = ctx.createBufferSource();
+    const gain = ctx.createGain();
+    source.buffer = ctx.createBuffer(1, 1, ctx.sampleRate);
+    gain.gain.value = 0;
+    source.connect(gain);
+    gain.connect(master);
+    source.start(0);
+  } catch (_) {}
 }
 
 document.body.addEventListener('pointerdown', () => ensureAudio(), { passive:true });
@@ -550,7 +564,7 @@ function applyCodeToSlot(kind, slot, code) {
   setStatus('Cargado');
 }
 
-function toggleGranular(slot) { if (!slot.buffer) return; slot.playing = !slot.playing; if (slot.playing) startGranular(slot); else stopGranular(slot); renderAll(); schedulePersist(); }
+function toggleGranular(slot) { if (!slot.buffer) return; if (!ensureAudio()) return; slot.playing = !slot.playing; if (slot.playing) startGranular(slot); else stopGranular(slot); renderAll(); schedulePersist(); }
 function startGranular(slot) {
   if (!ctx || !slot.buffer) return;
   stopGranular(slot);
@@ -565,7 +579,7 @@ function startGranular(slot) {
 function stopGranular(slot) { const t = granularTimers.get(slot.uid); if (t) clearTimeout(t); granularTimers.delete(slot.uid); }
 function restartGranular(slot) { if (!slot.playing) return; stopGranular(slot); startGranular(slot); }
 
-function toggleLoop(slot) { if (!slot.buffer) return; slot.playing = !slot.playing; if (slot.playing) startLoop(slot); else stopLoop(slot); renderAll(); schedulePersist(); }
+function toggleLoop(slot) { if (!slot.buffer) return; if (!ensureAudio()) return; slot.playing = !slot.playing; if (slot.playing) startLoop(slot); else stopLoop(slot); renderAll(); schedulePersist(); }
 function startLoop(slot) {
   if (!ctx || !slot.buffer) return;
   stopLoop(slot);
