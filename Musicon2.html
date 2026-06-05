@@ -1,0 +1,702 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Musicon2</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<style>
+  :root { --bg:#070b0d; --panel:#11191d; --panel2:#182329; --line:#314148; --text:#eef7f3; --muted:#9cafad; --green:#39a96b; --blue:#3974c8; --red:#7e2d2d; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; -webkit-user-select:none; user-select:none; touch-action:manipulation; }
+  button, select, input { font:inherit; }
+  button, select, .fileBtn, input.codeInput { min-height:34px; border:1px solid #405259; border-radius:8px; background:#202b30; color:#fff; padding:5px 7px; }
+  button { cursor:pointer; }
+  button.active { background:var(--green); border-color:#6ed99b; }
+  button.alt { background:var(--blue); border-color:#6ea1ff; }
+  button.danger { background:var(--red); border-color:#a84a4a; }
+  button:disabled { opacity:.35; }
+  input[type="file"] { display:none; }
+  main { max-width:1200px; margin:0 auto; padding:5px; }
+  .loader { display:grid; grid-template-columns:76px 1fr auto auto auto; gap:5px; margin-bottom:6px; padding:5px; border:1px solid var(--line); border-radius:8px; background:var(--panel); }
+  .fileBtn { display:flex; align-items:center; justify-content:center; }
+  .name { color:var(--muted); font-size:11px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; display:flex; align-items:center; }
+  .cards { display:grid; grid-template-columns:1fr 1fr; gap:5px; }
+  .sectionTitle { margin:10px 0 5px; color:var(--muted); font-size:12px; font-weight:800; letter-spacing:.04em; text-transform:uppercase; display:flex; align-items:center; justify-content:space-between; }
+  .card { position:relative; border:1px solid var(--line); border-radius:8px; background:var(--panel2); padding:5px; }
+  .card.focused { outline:2px solid rgba(57,169,107,.45); }
+  .deleteBtn { position:absolute; top:5px; right:5px; width:24px; height:24px; min-height:24px; border-radius:50%; padding:0; font-weight:900; line-height:1; z-index:4; opacity:.82; }
+  .deleteBtn.holding { opacity:1; background:#c23a3a; box-shadow:0 0 0 3px rgba(194,58,58,.35); }
+  .cardName { padding-right:30px; min-height:24px; display:flex; align-items:center; color:var(--muted); font-size:11px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .toolRow { display:flex; gap:4px; margin-top:4px; flex-wrap:wrap; }
+  .toolRow > * { flex:0 0 auto; }
+  .codeInput { flex:1 1 160px; min-width:140px; font-size:12px; text-transform:uppercase; letter-spacing:.03em; }
+  .wave { width:100%; height:122px; display:block; margin-top:5px; border:1px solid #263940; border-radius:8px; background:#0b1114; touch-action:none; }
+  .row { display:grid; grid-template-columns:46px 1fr 42px; gap:4px; align-items:center; margin-top:4px; }
+  .row label { color:var(--muted); font-size:11px; }
+  input[type="range"] { width:100%; }
+  .keyboardWrap { margin-top:8px; padding:5px; border:1px solid var(--line); border-radius:8px; background:var(--panel); }
+  .keyboardHead { display:grid; grid-template-columns:1fr auto auto auto; gap:5px; align-items:center; margin-bottom:5px; }
+  .keyboardStatus { color:var(--muted); font-size:12px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .keyboard { display:flex; gap:2px; overflow-x:auto; min-height:84px; padding-bottom:2px; }
+  .key { min-width:34px; height:82px; background:#edf2f3; color:#111; border-radius:0 0 7px 7px; display:flex; align-items:flex-end; justify-content:center; padding-bottom:5px; font-weight:800; font-size:12px; }
+  .key.black { min-width:22px; height:56px; margin-left:-13px; margin-right:-13px; z-index:3; background:#050606; color:#fff; border:1px solid #333; }
+  .key.down { filter:brightness(1.35); transform:translateY(2px); }
+  @media (max-width:720px) {
+    .loader { grid-template-columns:60px 1fr auto auto; }
+    .cards { grid-template-columns:1fr; }
+    .wave { height:96px; }
+    .row { grid-template-columns:42px 1fr 36px; }
+    button, select, .fileBtn, input.codeInput { min-height:30px; font-size:12px; padding:4px 6px; }
+    .keyboardHead { grid-template-columns:1fr auto auto; }
+    .key { min-width:30px; height:72px; }
+    .key.black { min-width:20px; height:50px; margin-left:-12px; margin-right:-12px; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <section class="loader">
+    <label class="fileBtn">Cargar<input id="sampleInput" type="file" accept="audio/*"></label>
+    <div class="name" id="loadedSampleName">---</div>
+    <button class="alt" id="btnGranular" disabled>Granular</button>
+    <button class="alt" id="btnLoop" disabled>Loop</button>
+    <button class="alt" id="btnKeyboard" disabled>Teclado</button>
+  </section>
+
+  <div class="sectionTitle">
+    <span>Granulares</span>
+    <span id="granularCount">0</span>
+  </div>
+  <section class="cards" id="granularList"></section>
+
+  <div class="sectionTitle">
+    <span>Loops</span>
+    <span id="loopCount">0</span>
+  </div>
+  <section class="cards" id="loopList"></section>
+
+  <section class="keyboardWrap">
+    <div class="keyboardHead">
+      <div class="keyboardStatus" id="keyboardStatus">Teclado: sin carga</div>
+      <input class="codeInput" id="keyboardCode" placeholder="CÓDIGO TECLADO">
+      <select id="keyboardVolumeMode">
+        <option value="fixed">Volumen fijo</option>
+        <option value="vel">Volumen por ataque</option>
+      </select>
+      <button id="keyboardApply">Aplicar</button>
+    </div>
+    <div id="keyboardControls"></div>
+    <section class="keyboard" id="keyboard"></section>
+  </section>
+</main>
+
+<script>
+const APP_KEY = 'musicon2-local-state';
+const NOTES = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+const activeNotes = new Map();
+const granularTimers = new Map();
+const loopNodes = new Map();
+const dragState = { gran: new Map(), loop: new Map() };
+
+let ctx = null;
+let master = null;
+let pendingSample = null;
+let persistenceTimer = null;
+let statusTimer = null;
+let nextUid = 1;
+let focusedGranularId = null;
+let focusedLoopId = null;
+
+const granulars = [];
+const loops = [];
+const keyboardSlot = makeKeyboardSlot();
+
+const els = {
+  sampleInput: document.getElementById('sampleInput'),
+  loadedSampleName: document.getElementById('loadedSampleName'),
+  btnGranular: document.getElementById('btnGranular'),
+  btnLoop: document.getElementById('btnLoop'),
+  btnKeyboard: document.getElementById('btnKeyboard'),
+  granularList: document.getElementById('granularList'),
+  loopList: document.getElementById('loopList'),
+  granularCount: document.getElementById('granularCount'),
+  loopCount: document.getElementById('loopCount'),
+  keyboardStatus: document.getElementById('keyboardStatus'),
+  keyboardCode: document.getElementById('keyboardCode'),
+  keyboardVolumeMode: document.getElementById('keyboardVolumeMode'),
+  keyboardApply: document.getElementById('keyboardApply'),
+  keyboard: document.getElementById('keyboard'),
+  keyboardControls: document.getElementById('keyboardControls')
+};
+
+function makeGranular() {
+  return { uid: nextUid++, code:'', sampleName:'---', sampleData:'', buffer:null, loading:'', playing:false, volume:0.65, activeMotor:'A', motors:{ A:{ position:0.25, grain:220, density:14, spread:0.12, filter:1800 }, B:{ position:0.65, grain:140, density:20, spread:0.24, filter:2600 } } };
+}
+function makeLoop() {
+  return { uid: nextUid++, code:'', sampleName:'---', sampleData:'', buffer:null, loading:'', playing:false, volume:0.75, start:0, end:1, rate:1, filter:8000, pan:0 };
+}
+function makeKeyboardSlot() { return { code:'', sampleName:'---', sampleData:'', buffer:null, loading:'', volumeMode:'fixed', volume:0.8, transpose:0, filter:7000 }; }
+
+function ensureAudio() {
+  if (!ctx) {
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return setStatus('Audio no disponible'), false;
+    ctx = new AC();
+    master = ctx.createGain();
+    master.gain.value = .9;
+    master.connect(ctx.destination);
+  }
+  if (ctx.state === 'suspended') ctx.resume();
+  return true;
+}
+
+document.body.addEventListener('pointerdown', () => ensureAudio(), { passive:true });
+
+els.sampleInput.onchange = async () => {
+  if (!ensureAudio()) return;
+  const file = els.sampleInput.files[0];
+  if (!file) return;
+  const dataUrl = await fileToDataUrl(file);
+  pendingSample = { name:file.name, dataUrl, buffer:await decodeDataUrl(dataUrl), sampleId:Date.now() + '-' + Math.random().toString(36).slice(2,8) };
+  els.loadedSampleName.textContent = file.name;
+  els.btnGranular.disabled = els.btnLoop.disabled = els.btnKeyboard.disabled = false;
+};
+
+els.btnGranular.onclick = async () => { if (pendingSample) { const s = await createGranularFromPending(); if (s) { granulars.push(s); focusedGranularId = s.uid; renderAll(); schedulePersist(); } } };
+els.btnLoop.onclick = async () => { if (pendingSample) { const s = await createLoopFromPending(); if (s) { loops.push(s); focusedLoopId = s.uid; renderAll(); schedulePersist(); } } };
+els.btnKeyboard.onclick = async () => { if (pendingSample) { await assignKeyboardFromPending(); renderAll(); schedulePersist(); } };
+els.keyboardApply.onclick = () => applyKeyboardCode();
+els.keyboardVolumeMode.onchange = () => { keyboardSlot.volumeMode = els.keyboardVolumeMode.value === 'vel' ? 'vel' : 'fixed'; renderAll(); schedulePersist(); };
+els.keyboardCode.addEventListener('keydown', e => { if (e.key === 'Enter') applyKeyboardCode(); });
+els.keyboardCode.addEventListener('input', () => { keyboardSlot.code = els.keyboardCode.value.trim().toUpperCase(); schedulePersist(); });
+
+function setStatus(text, timeout = 1400) {
+  console.log(text);
+}
+
+function schedulePersist() {
+  clearTimeout(persistenceTimer);
+  persistenceTimer = setTimeout(persistState, 120);
+}
+
+function persistState() {
+  const state = { nextUid, granulars: granulars.map(snapshotGranular), loops: loops.map(snapshotLoop), keyboard: snapshotKeyboard() };
+  localStorage.setItem(APP_KEY, JSON.stringify(state));
+}
+
+async function restoreState() {
+  const raw = localStorage.getItem(APP_KEY);
+  if (!raw) return;
+  try {
+    const state = JSON.parse(raw);
+    nextUid = Number(state.nextUid) || 1;
+    if (Array.isArray(state.granulars)) {
+      for (const snap of state.granulars) {
+        const slot = makeGranular();
+        slot.uid = Number(snap.uid) || slot.uid;
+        granulars.push(slot);
+        await applyGranularSnapshot(slot, snap);
+      }
+    }
+    if (Array.isArray(state.loops)) {
+      for (const snap of state.loops) {
+        const slot = makeLoop();
+        slot.uid = Number(snap.uid) || slot.uid;
+        loops.push(slot);
+        await applyLoopSnapshot(slot, snap);
+      }
+    }
+    if (state.keyboard) await applyKeyboardSnapshot(state.keyboard);
+  } catch (_) {
+    granulars.length = 0;
+    loops.length = 0;
+  }
+}
+
+function makeNumericCode(prefix, values) { return prefix + '-' + values.map(v => String(v)).join('-'); }
+function pad(v, n) { return String(Math.round(v)).padStart(n, '0'); }
+
+function granularCode(slot) {
+  const m = slot.motors[slot.activeMotor];
+  return makeNumericCode('G', [pad(slot.volume * 100,3), pad(m.grain,3), pad(m.density,2), pad(m.spread * 100,2), pad(m.filter,4), pad(m.position * 100,3), slot.activeMotor === 'B' ? 1 : 0]);
+}
+function loopCode(slot) { return makeNumericCode('L', [pad(slot.volume * 100,3), pad(slot.start * 100,3), pad(slot.end * 100,3), pad(slot.rate * 100,3), pad(slot.filter,4), pad((slot.pan + 1) * 100,3)]); }
+function keyboardCodeValue(slot) { return makeNumericCode('K', [pad(slot.volume * 100,3), pad(slot.transpose + 24,3), pad(slot.filter,4), slot.volumeMode === 'vel' ? 1 : 0]); }
+
+function parseNumericCode(code) {
+  const cleaned = String(code || '').trim().toUpperCase();
+  const parts = cleaned.split('-');
+  if (parts.length < 2) return null;
+  const prefix = parts[0];
+  const nums = parts.slice(1).map(p => Number(p));
+  if (nums.some(n => Number.isNaN(n))) return null;
+  return { prefix, nums };
+}
+
+function applyGranularCode(slot, code) {
+  const p = parseNumericCode(code); if (!p || p.prefix !== 'G' || p.nums.length < 7) return false;
+  const [vol, grain, density, spread, filter, pos, motor] = p.nums;
+  slot.volume = clamp(vol / 100, 0, 1);
+  slot.activeMotor = motor ? 'B' : 'A';
+  const m = slot.motors[slot.activeMotor];
+  m.grain = clamp(grain, 25, 900);
+  m.density = clamp(density, 2, 45);
+  m.spread = clamp(spread / 100, 0, 0.7);
+  m.filter = clamp(filter, 200, 8000);
+  m.position = clamp(pos / 100, 0, 1);
+  slot.code = granularCode(slot);
+  return true;
+}
+
+function applyLoopCode(slot, code) {
+  const p = parseNumericCode(code); if (!p || p.prefix !== 'L' || p.nums.length < 6) return false;
+  const [vol, start, end, rate, filter, pan] = p.nums;
+  slot.volume = clamp(vol / 100, 0, 1);
+  slot.start = clamp(start / 100, 0, 1);
+  slot.end = clamp(end / 100, 0, 1);
+  slot.rate = clamp(rate / 100, .25, 2.5);
+  slot.filter = clamp(filter, 180, 12000);
+  slot.pan = clamp(pan / 100 - 1, -1, 1);
+  slot.code = loopCode(slot);
+  return true;
+}
+
+function applyKeyboardCodeFromText(code) {
+  const p = parseNumericCode(code); if (!p || p.prefix !== 'K' || p.nums.length < 4) return false;
+  const [vol, tr, filter, mode] = p.nums;
+  keyboardSlot.volume = clamp(vol / 100, 0, 1);
+  keyboardSlot.transpose = clamp(tr - 24, -24, 24);
+  keyboardSlot.filter = clamp(filter, 300, 12000);
+  keyboardSlot.volumeMode = mode ? 'vel' : 'fixed';
+  keyboardSlot.code = keyboardCodeValue(keyboardSlot);
+  return true;
+}
+
+async function createGranularFromPending() {
+  const slot = makeGranular();
+  slot.sampleName = pendingSample.name;
+  slot.sampleData = pendingSample.dataUrl;
+  slot.buffer = pendingSample.buffer;
+  slot.loading = 'listo';
+  slot.code = granularCode(slot);
+  return slot;
+}
+async function createLoopFromPending() {
+  const slot = makeLoop();
+  slot.sampleName = pendingSample.name;
+  slot.sampleData = pendingSample.dataUrl;
+  slot.buffer = pendingSample.buffer;
+  slot.loading = 'listo';
+  slot.code = loopCode(slot);
+  return slot;
+}
+async function assignKeyboardFromPending() {
+  keyboardSlot.sampleName = pendingSample.name;
+  keyboardSlot.sampleData = pendingSample.dataUrl;
+  keyboardSlot.buffer = pendingSample.buffer;
+  keyboardSlot.loading = 'listo';
+  keyboardSlot.code = keyboardCodeValue(keyboardSlot);
+}
+
+function snapshotGranular(slot) { return { uid: slot.uid, code: slot.code, sampleName: slot.sampleName, sampleData: slot.sampleData, playing: slot.playing, volume: slot.volume, activeMotor: slot.activeMotor, motors:{ A:{...slot.motors.A}, B:{...slot.motors.B} } }; }
+function snapshotLoop(slot) { return { uid: slot.uid, code: slot.code, sampleName: slot.sampleName, sampleData: slot.sampleData, playing: slot.playing, volume: slot.volume, start: slot.start, end: slot.end, rate: slot.rate, filter: slot.filter, pan: slot.pan }; }
+function snapshotKeyboard() { return { code: keyboardSlot.code, sampleName: keyboardSlot.sampleName, sampleData: keyboardSlot.sampleData, volumeMode: keyboardSlot.volumeMode, volume: keyboardSlot.volume, transpose: keyboardSlot.transpose, filter: keyboardSlot.filter }; }
+
+async function applyGranularSnapshot(slot, snap) {
+  slot.sampleName = snap.sampleName || '---';
+  slot.sampleData = snap.sampleData || '';
+  slot.volume = numberOr(slot.volume, snap.volume);
+  slot.activeMotor = snap.activeMotor === 'B' ? 'B' : 'A';
+  if (snap.motors) {
+    for (const id of ['A','B']) {
+      if (!snap.motors[id]) continue;
+      Object.assign(slot.motors[id], snap.motors[id]);
+    }
+  }
+  if (slot.sampleData) slot.buffer = await decodeDataUrl(slot.sampleData);
+  slot.code = snap.code || granularCode(slot);
+  slot.playing = !!snap.playing;
+  if (slot.playing) startGranular(slot);
+}
+async function applyLoopSnapshot(slot, snap) {
+  slot.sampleName = snap.sampleName || '---';
+  slot.sampleData = snap.sampleData || '';
+  slot.volume = numberOr(slot.volume, snap.volume);
+  slot.start = numberOr(slot.start, snap.start);
+  slot.end = numberOr(slot.end, snap.end);
+  slot.rate = numberOr(slot.rate, snap.rate);
+  slot.filter = numberOr(slot.filter, snap.filter);
+  slot.pan = numberOr(slot.pan, snap.pan);
+  if (slot.sampleData) slot.buffer = await decodeDataUrl(slot.sampleData);
+  slot.code = snap.code || loopCode(slot);
+  slot.playing = !!snap.playing;
+  if (slot.playing) startLoop(slot);
+}
+async function applyKeyboardSnapshot(snap) {
+  keyboardSlot.sampleName = snap.sampleName || '---';
+  keyboardSlot.sampleData = snap.sampleData || '';
+  keyboardSlot.volumeMode = snap.volumeMode === 'vel' ? 'vel' : 'fixed';
+  keyboardSlot.volume = numberOr(keyboardSlot.volume, snap.volume);
+  keyboardSlot.transpose = numberOr(keyboardSlot.transpose, snap.transpose);
+  keyboardSlot.filter = numberOr(keyboardSlot.filter, snap.filter);
+  if (keyboardSlot.sampleData) keyboardSlot.buffer = await decodeDataUrl(keyboardSlot.sampleData);
+  keyboardSlot.code = snap.code || keyboardCodeValue(keyboardSlot);
+}
+
+function numberOr(current, value) { return typeof value === 'number' && Number.isFinite(value) ? value : current; }
+function clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
+function setMotorValue(slot, param, value) { slot.motors[slot.activeMotor][param] = value; slot.code = granularCode(slot); }
+
+function renderAll() {
+  renderStatus();
+  renderLists();
+  renderKeyboard();
+  renderFocus();
+}
+
+function renderStatus() {}
+
+function renderLists() {
+  els.granularCount.textContent = String(granulars.length);
+  els.loopCount.textContent = String(loops.length);
+  els.granularList.innerHTML = granulars.map(renderGranularCard).join('');
+  els.loopList.innerHTML = loops.map(renderLoopCard).join('');
+  granulars.forEach(bindGranularCard);
+  loops.forEach(bindLoopCard);
+}
+
+function emptyBox(text) { return `<div class="name" style="padding:8px 2px;">${escapeHtml(text)}</div>`; }
+
+function renderGranularCard(slot) { return cardTemplate('granular', slot, granularCode(slot), `
+  ${row(slot.uid,'volume','Vol',0,1,.01,slot.volume,'granular')}
+  ${row(slot.uid,'grain','Grano',25,900,5,slot.motors[slot.activeMotor].grain,'granular')}
+  ${row(slot.uid,'density','Dens',2,45,1,slot.motors[slot.activeMotor].density,'granular')}
+  ${row(slot.uid,'spread','Spr',0,.7,.01,slot.motors[slot.activeMotor].spread,'granular')}
+  ${row(slot.uid,'filter','Filt',200,8000,20,slot.motors[slot.activeMotor].filter,'granular')}
+  ${row(slot.uid,'position','Pos',0,1,.001,slot.motors[slot.activeMotor].position,'granular')}
+`); }
+function renderLoopCard(slot) { return cardTemplate('loop', slot, loopCode(slot), `
+  ${row(slot.uid,'volume','Vol',0,1,.01,slot.volume,'loop')}
+  ${row(slot.uid,'start','In',0,1,.001,slot.start,'loop')}
+  ${row(slot.uid,'end','Out',0,1,.001,slot.end,'loop')}
+  ${row(slot.uid,'rate','Rate',.25,2.5,.01,slot.rate,'loop')}
+  ${row(slot.uid,'filter','Filt',180,12000,20,slot.filter,'loop')}
+  ${row(slot.uid,'pan','Pan',-1,1,.01,slot.pan,'loop')}
+`); }
+
+function cardTemplate(kind, slot, code, controls) {
+  const active = kind === 'granular' ? granulars.includes(slot) && slot.uid === focusedGranularId : loops.includes(slot) && slot.uid === focusedLoopId;
+  return `
+    <div class="card ${active ? 'focused' : ''}" data-kind="${kind}" data-uid="${slot.uid}">
+      <button class="deleteBtn danger" data-action="delete">×</button>
+      <div class="cardName">${kind === 'granular' ? 'Granular' : 'Loop'} ${slot.uid} · ${escapeHtml(slot.sampleName)}${slot.loading ? ' · ' + escapeHtml(slot.loading) : ''}</div>
+      <div class="toolRow">
+        <input class="codeInput" data-action="code" value="${escapeHtml(code)}" placeholder="CÓDIGO">
+        <button data-action="focus" class="alt">Activo</button>
+        <button data-action="play">${slot.playing ? 'Stop' : 'Play'}</button>
+        ${kind === 'granular' ? `<select data-action="motor"><option value="A" ${slot.activeMotor === 'A' ? 'selected' : ''}>A</option><option value="B" ${slot.activeMotor === 'B' ? 'selected' : ''}>B</option></select>` : ''}
+      </div>
+      <canvas class="wave" data-action="wave" width="560" height="122"></canvas>
+      <div data-action="controls">${controls}</div>
+    </div>
+  `;
+}
+
+function bindGranularCard(slot) {
+  const el = document.querySelector(`.card[data-kind="granular"][data-uid="${slot.uid}"]`); if (!el) return;
+  bindDeleteHold(el.querySelector('[data-action="delete"]'), 'granular', slot.uid);
+  el.querySelector('[data-action="focus"]').onclick = () => { focusedGranularId = slot.uid; renderAll(); schedulePersist(); };
+  el.querySelector('[data-action="play"]').onclick = () => toggleGranular(slot);
+  el.querySelector('[data-action="motor"]').onchange = e => { slot.activeMotor = e.target.value === 'B' ? 'B' : 'A'; slot.code = granularCode(slot); renderAll(); schedulePersist(); };
+  const codeInput = el.querySelector('[data-action="code"]');
+  codeInput.onkeydown = e => { if (e.key === 'Enter') applyCodeToSlot('granular', slot, codeInput.value); };
+  codeInput.onblur = () => applyCodeToSlot('granular', slot, codeInput.value);
+  el.querySelector('[data-action="wave"]').onpointerdown = evt => startGranularMove(evt, slot.uid);
+  el.querySelector('[data-action="wave"]').onpointermove = evt => moveGranular(evt, slot.uid);
+  el.querySelector('[data-action="wave"]').onpointerup = el.querySelector('[data-action="wave"]').onpointercancel = () => dragState.gran.delete(slot.uid);
+  bindRangeInputs(el, 'granular', slot);
+  drawGranular(slot);
+}
+
+function bindLoopCard(slot) {
+  const el = document.querySelector(`.card[data-kind="loop"][data-uid="${slot.uid}"]`); if (!el) return;
+  bindDeleteHold(el.querySelector('[data-action="delete"]'), 'loop', slot.uid);
+  el.querySelector('[data-action="focus"]').onclick = () => { focusedLoopId = slot.uid; renderAll(); schedulePersist(); };
+  el.querySelector('[data-action="play"]').onclick = () => toggleLoop(slot);
+  const codeInput = el.querySelector('[data-action="code"]');
+  codeInput.onkeydown = e => { if (e.key === 'Enter') applyCodeToSlot('loop', slot, codeInput.value); };
+  codeInput.onblur = () => applyCodeToSlot('loop', slot, codeInput.value);
+  el.querySelector('[data-action="wave"]').onpointerdown = evt => startLoopMove(evt, slot.uid);
+  el.querySelector('[data-action="wave"]').onpointermove = evt => moveLoop(evt, slot.uid);
+  el.querySelector('[data-action="wave"]').onpointerup = el.querySelector('[data-action="wave"]').onpointercancel = () => dragState.loop.delete(slot.uid);
+  bindRangeInputs(el, 'loop', slot);
+  drawLoop(slot);
+}
+
+function bindRangeInputs(el, kind, slot) {
+  el.querySelectorAll('input[data-param]').forEach(input => {
+    const shown = input.nextElementSibling;
+    input.onpointerdown = () => ensureAudio();
+    input.oninput = () => {
+      const val = Number(input.value);
+      if (kind === 'granular') {
+        if (input.dataset.param === 'volume') slot.volume = val;
+        else slot.motors[slot.activeMotor][input.dataset.param] = val;
+        slot.code = granularCode(slot);
+      } else {
+        slot[input.dataset.param] = val;
+        slot.code = loopCode(slot);
+      }
+      if (shown) shown.textContent = ['volume','start','end','rate','pan','position'].includes(input.dataset.param) ? val.toFixed(2) : Math.round(val);
+      if (kind === 'granular' && input.dataset.param === 'density') restartGranular(slot);
+      if (kind === 'loop' && ['start','end'].includes(input.dataset.param)) restartLoop(slot); else if (kind === 'loop') updateLoopNode(slot);
+      schedulePersist();
+      updateCodeInput(kind, slot);
+    };
+  });
+}
+
+function updateCodeInput(kind, slot) {
+  const card = document.querySelector(`.card[data-kind="${kind}"][data-uid="${slot.uid}"]`); if (!card) return;
+  const codeInput = card.querySelector('[data-action="code"]'); if (!codeInput) return;
+  codeInput.value = kind === 'granular' ? granularCode(slot) : loopCode(slot);
+}
+
+function renderKeyboard() {
+  els.keyboardStatus.textContent = `Teclado: ${keyboardSlot.sampleName}${keyboardSlot.loading ? ' · ' + keyboardSlot.loading : ''}`;
+  els.keyboardCode.value = keyboardCodeValue(keyboardSlot);
+  els.keyboardVolumeMode.value = keyboardSlot.volumeMode === 'vel' ? 'vel' : 'fixed';
+  els.keyboardControls.innerHTML = `
+    ${row('k','volume','Vol',0,1,.01,keyboardSlot.volume,'keyboard')}
+    ${row('k','transpose','Tran',-24,24,1,keyboardSlot.transpose,'keyboard')}
+    ${row('k','filter','Filt',300,12000,20,keyboardSlot.filter,'keyboard')}
+  `;
+  bindKeyboardControls();
+  buildKeyboard();
+}
+
+function bindKeyboardControls() {
+  els.keyboardControls.querySelectorAll('input[data-param]').forEach(input => {
+    const shown = input.nextElementSibling;
+    input.oninput = () => {
+      keyboardSlot[input.dataset.param] = Number(input.value);
+      keyboardSlot.code = keyboardCodeValue(keyboardSlot);
+      if (shown) shown.textContent = ['volume','transpose'].includes(input.dataset.param) ? Number(input.value).toFixed(2) : Math.round(Number(input.value));
+      updateKeyboardCode();
+      schedulePersist();
+    };
+  });
+}
+
+function updateKeyboardCode() { els.keyboardCode.value = keyboardCodeValue(keyboardSlot); }
+
+function renderFocus() {
+  document.querySelectorAll('.card').forEach(card => {
+    const kind = card.dataset.kind;
+    const uid = Number(card.dataset.uid);
+    card.classList.toggle('focused', kind === 'granular' ? uid === focusedGranularId : uid === focusedLoopId);
+  });
+}
+
+function row(group, param, label, min, max, step, value, target) {
+  const shown = ['volume','start','end','rate','pan','position'].includes(param) ? Number(value).toFixed(2) : Math.round(value);
+  return `<div class="row"><label>${label}</label><input data-group="${group}" data-target="${target}" data-param="${param}" type="range" min="${min}" max="${max}" step="${step}" value="${value}"><span>${shown}</span></div>`;
+}
+
+function bindDeleteHold(btn, kind, uid) {
+  if (!btn) return;
+  let timer = null;
+  const cancel = () => {
+    if (timer) clearTimeout(timer);
+    timer = null;
+    btn.classList.remove('holding');
+  };
+  btn.onclick = evt => evt.preventDefault();
+  btn.onpointerdown = evt => {
+    evt.preventDefault();
+    btn.classList.add('holding');
+    timer = setTimeout(() => {
+      timer = null;
+      btn.classList.remove('holding');
+      removeSlot(kind, uid);
+    }, 1000);
+  };
+  btn.onpointerup = cancel;
+  btn.onpointerleave = cancel;
+  btn.onpointercancel = cancel;
+}
+
+function removeSlot(kind, uid) {
+  if (kind === 'granular') {
+    const i = granulars.findIndex(x => x.uid === uid);
+    if (i >= 0) { stopGranular(granulars[i]); granulars.splice(i,1); if (focusedGranularId === uid) focusedGranularId = granulars[0]?.uid ?? null; }
+  } else {
+    const i = loops.findIndex(x => x.uid === uid);
+    if (i >= 0) { stopLoop(loops[i]); loops.splice(i,1); if (focusedLoopId === uid) focusedLoopId = loops[0]?.uid ?? null; }
+  }
+  renderAll();
+  schedulePersist();
+}
+
+function applyCodeToSlot(kind, slot, code) {
+  const trimmed = String(code || '').trim();
+  if (!trimmed) return;
+  const ok = kind === 'granular' ? applyGranularCode(slot, trimmed) : applyLoopCode(slot, trimmed);
+  if (!ok) { setStatus('Código inválido'); return; }
+  if (kind === 'granular') { if (slot.playing) restartGranular(slot); } else { if (slot.playing) restartLoop(slot); }
+  updateCodeInput(kind, slot);
+  renderAll();
+  schedulePersist();
+  setStatus('Cargado');
+}
+
+function toggleGranular(slot) { if (!slot.buffer) return; slot.playing = !slot.playing; if (slot.playing) startGranular(slot); else stopGranular(slot); renderAll(); schedulePersist(); }
+function startGranular(slot) {
+  if (!ctx || !slot.buffer) return;
+  stopGranular(slot);
+  const tick = () => {
+    if (!slot.playing || !slot.buffer) return stopGranular(slot);
+    const m = slot.motors[slot.activeMotor];
+    playGrain(slot, m, 0, slot.volume);
+    granularTimers.set(slot.uid, setTimeout(tick, Math.max(18, 1000 / m.density)));
+  };
+  tick();
+}
+function stopGranular(slot) { const t = granularTimers.get(slot.uid); if (t) clearTimeout(t); granularTimers.delete(slot.uid); }
+function restartGranular(slot) { if (!slot.playing) return; stopGranular(slot); startGranular(slot); }
+
+function toggleLoop(slot) { if (!slot.buffer) return; slot.playing = !slot.playing; if (slot.playing) startLoop(slot); else stopLoop(slot); renderAll(); schedulePersist(); }
+function startLoop(slot) {
+  if (!ctx || !slot.buffer) return;
+  stopLoop(slot);
+  const source = ctx.createBufferSource(); const gain = ctx.createGain(); const filter = ctx.createBiquadFilter(); const pan = ctx.createStereoPanner ? ctx.createStereoPanner() : null;
+  const start = clamp(slot.start,0,1) * slot.buffer.duration; const end = clamp(slot.end,0,1) * slot.buffer.duration; const loopStart = Math.min(start, Math.max(0, slot.buffer.duration - 0.02)); const loopEnd = Math.max(loopStart + 0.02, end || slot.buffer.duration);
+  source.buffer = slot.buffer; source.loop = true; source.loopStart = loopStart; source.loopEnd = Math.min(loopEnd, slot.buffer.duration); source.playbackRate.value = slot.rate; filter.type='lowpass'; filter.frequency.value = slot.filter; gain.gain.value = slot.volume;
+  source.connect(filter); if (pan) { pan.pan.value = slot.pan; filter.connect(pan); pan.connect(gain); } else { filter.connect(gain); } gain.connect(master); source.start(ctx.currentTime, loopStart); loopNodes.set(slot.uid, { source, gain, filter, pan });
+}
+function stopLoop(slot) { const n = loopNodes.get(slot.uid); if (n) { try { n.source.stop(); } catch (_) {} } loopNodes.delete(slot.uid); }
+function restartLoop(slot) { if (!slot.playing) return; stopLoop(slot); startLoop(slot); }
+function updateLoopNode(slot) { const n = loopNodes.get(slot.uid); if (!n || !ctx) return; const now = ctx.currentTime; n.gain.gain.setValueAtTime(slot.volume, now); n.filter.frequency.setValueAtTime(slot.filter, now); n.source.playbackRate.setValueAtTime(slot.rate, now); if (n.pan) n.pan.pan.setValueAtTime(slot.pan, now); }
+
+function playGrain(slot, motor, noteOffset, volumeOverride) {
+  if (!ctx || !slot.buffer || !motor) return;
+  if (ctx.state === 'suspended') ctx.resume();
+  const source = ctx.createBufferSource(); const gain = ctx.createGain(); const filter = ctx.createBiquadFilter(); const pan = ctx.createStereoPanner ? ctx.createStereoPanner() : null;
+  const dur = Math.min(motor.grain / 1000, slot.buffer.duration); const jitter = (Math.random() - .5) * motor.spread; const p = clamp(motor.position + jitter, 0, 1); const offset = p * Math.max(0, slot.buffer.duration - dur); const now = ctx.currentTime;
+  source.buffer = slot.buffer; source.playbackRate.value = Math.pow(2, noteOffset / 12); filter.type='lowpass'; filter.frequency.value = motor.filter; gain.gain.setValueAtTime(0, now); gain.gain.linearRampToValueAtTime(volumeOverride, now + .018); gain.gain.linearRampToValueAtTime(0, now + dur); source.connect(filter); if (pan) { pan.pan.value = (Math.random() - .5) * .7; filter.connect(pan); pan.connect(gain); } else { filter.connect(gain); } gain.connect(master); source.start(now, offset, dur); source.stop(now + dur + .05);
+}
+
+function drawGranular(slot) {
+  const canvas = document.querySelector(`.card[data-kind="granular"][data-uid="${slot.uid}"] canvas`); if (!canvas) return; const g = canvas.getContext('2d'); drawWaveBase(g, canvas, slot.buffer, '#79d99a'); drawMotorLine(g, canvas.width, canvas.height, slot.motors.A.position, 'A', '#79d99a', slot.activeMotor === 'A', 'top'); drawMotorLine(g, canvas.width, canvas.height, slot.motors.B.position, 'B', '#70a9ff', slot.activeMotor === 'B', 'bottom'); }
+function drawLoop(slot) { const canvas = document.querySelector(`.card[data-kind="loop"][data-uid="${slot.uid}"] canvas`); if (!canvas) return; const g = canvas.getContext('2d'); drawWaveBase(g, canvas, slot.buffer, '#d9a779'); drawMarker(g, canvas.width, canvas.height, clamp(slot.start,0,1) * canvas.width, 'IN', '#fff', true, 'top'); drawMarker(g, canvas.width, canvas.height, clamp(slot.end,0,1) * canvas.width, 'OUT', '#fff', true, 'bottom'); }
+function drawWaveBase(g, canvas, buffer, color) {
+  const w = canvas.width, h = canvas.height; g.clearRect(0,0,w,h); g.fillStyle = '#0b1114'; g.fillRect(0,0,w,h); const data = buffer ? buffer.getChannelData(0) : null; if (!data) return; const step = Math.ceil(data.length / w); const mid = h/2; g.strokeStyle = color; g.lineWidth = 2; g.beginPath(); for (let x=0; x<w; x++) { let min=1, max=-1; const start = x * step; for (let j=0; j<step && start + j < data.length; j++) { const v = data[start+j]; if (v < min) min = v; if (v > max) max = v; } g.moveTo(x, mid + min * mid * .82); g.lineTo(x, mid + max * mid * .82); } g.stroke();
+}
+function drawMotorLine(g, w, h, position, label, color, active, side) { const x = position * w; const hh = active ? 17 : 14; const hw = active ? 30 : 25; const y = side === 'top' ? 0 : h - hh; g.strokeStyle = active ? '#fff' : color; g.lineWidth = active ? 4 : 2; g.beginPath(); g.moveTo(x,0); g.lineTo(x,h); g.stroke(); g.fillStyle = active ? '#fff' : color; g.fillRect(x - hw/2, y, hw, hh); g.fillStyle = active ? '#111' : '#fff'; g.font = 'bold 11px system-ui'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(label, x, y + hh/2); g.textAlign = 'start'; g.textBaseline = 'alphabetic'; }
+function drawMarker(g, w, h, x, label, color, active, side) { const hh = active ? 17 : 14; const hw = active ? 34 : 28; const y = side === 'top' ? 0 : h - hh; g.strokeStyle = active ? '#fff' : color; g.lineWidth = active ? 4 : 2; g.beginPath(); g.moveTo(x,0); g.lineTo(x,h); g.stroke(); g.fillStyle = active ? '#fff' : color; g.fillRect(x - hw/2, y, hw, hh); g.fillStyle = active ? '#111' : '#fff'; g.font = 'bold 11px system-ui'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(label, x, y + hh/2); g.textAlign = 'start'; g.textBaseline = 'alphabetic'; }
+
+function startGranularMove(evt, uid) { ensureAudio(); const slot = granulars.find(x => x.uid === uid); if (!slot) return; focusedGranularId = uid; const point = wavePointer(evt, evt.currentTarget); const motor = pickMotor(slot, point); slot.activeMotor = motor; dragState.gran.set(uid, motor); slot.motors[motor].position = point.x; slot.code = granularCode(slot); if (slot.playing) restartGranular(slot); renderAll(); schedulePersist(); }
+function moveGranular(evt, uid) { if (evt.buttons !== 1 && evt.type === 'pointermove') return; const motor = dragState.gran.get(uid); if (!motor) return; const slot = granulars.find(x => x.uid === uid); if (!slot) return; const point = wavePointer(evt, evt.currentTarget); slot.motors[motor].position = point.x; slot.code = granularCode(slot); if (slot.playing) restartGranular(slot); drawGranular(slot); schedulePersist(); }
+function startLoopMove(evt, uid) { ensureAudio(); const slot = loops.find(x => x.uid === uid); if (!slot) return; focusedLoopId = uid; const point = wavePointer(evt, evt.currentTarget); const target = point.y < .5 ? 'start' : 'end'; dragState.loop.set(uid, target); slot[target] = point.x; if (slot.start > slot.end) { if (target === 'start') slot.end = slot.start; else slot.start = slot.end; } slot.code = loopCode(slot); if (slot.playing) restartLoop(slot); drawLoop(slot); schedulePersist(); }
+function moveLoop(evt, uid) { if (evt.buttons !== 1 && evt.type === 'pointermove') return; const target = dragState.loop.get(uid); if (!target) return; const slot = loops.find(x => x.uid === uid); if (!slot) return; const point = wavePointer(evt, evt.currentTarget); slot[target] = point.x; if (slot.start > slot.end) { if (target === 'start') slot.end = slot.start; else slot.start = slot.end; } slot.code = loopCode(slot); if (slot.playing) restartLoop(slot); drawLoop(slot); schedulePersist(); }
+function wavePointer(evt, canvas) { const rect = canvas.getBoundingClientRect(); return { x: clamp((evt.clientX - rect.left) / rect.width, 0, 1), y: clamp((evt.clientY - rect.top) / rect.height, 0, 1) }; }
+function pickMotor(slot, point) { const dA = Math.abs(point.x - slot.motors.A.position); const dB = Math.abs(point.x - slot.motors.B.position); if (point.y < .30 && dA < .14) return 'A'; if (point.y > .70 && dB < .14) return 'B'; return dA <= dB ? 'A' : 'B'; }
+
+function buildKeyboard() {
+  els.keyboard.innerHTML = '';
+  for (let s = -24; s <= 24; s++) {
+    const name = NOTES[((s % 12) + 12) % 12];
+    const key = document.createElement('div');
+    key.className = 'key' + (name.includes('#') ? ' black' : '');
+    key.textContent = name;
+    key.onpointerdown = async evt => {
+      await ensureAudio();
+      if (!keyboardSlot.buffer) return;
+      key.classList.add('down');
+      const v = keyboardSlot.volumeMode === 'vel' ? clamp(0.55 + Math.random() * .35, 0, 1) : keyboardSlot.volume;
+      activeNotes.set(evt.pointerId, setInterval(() => playKeyboardNote(keyboardSlot, s, v), 45));
+      playKeyboardNote(keyboardSlot, s, v);
+    };
+    key.onpointerup = key.onpointercancel = key.onpointerleave = evt => { key.classList.remove('down'); const t = activeNotes.get(evt.pointerId); if (t) clearInterval(t); activeNotes.delete(evt.pointerId); };
+    els.keyboard.appendChild(key);
+  }
+}
+function playKeyboardNote(slot, semitones, vol) {
+  if (!ctx || !master || !slot.buffer) return;
+  const source = ctx.createBufferSource(); const gain = ctx.createGain(); const filter = ctx.createBiquadFilter();
+  source.buffer = slot.buffer; source.playbackRate.value = Math.pow(2, (semitones + slot.transpose) / 12); filter.type = 'lowpass'; filter.frequency.value = slot.filter; const now = ctx.currentTime; gain.gain.setValueAtTime(0, now); gain.gain.linearRampToValueAtTime(typeof vol === 'number' ? vol : slot.volume, now + .01); gain.gain.linearRampToValueAtTime(0, now + Math.min(.9, slot.buffer.duration)); source.connect(filter); filter.connect(gain); gain.connect(master); source.start(now); source.stop(now + Math.min(1.1, slot.buffer.duration + .1));
+}
+
+function applyKeyboardCode() { if (applyKeyboardCodeFromText(els.keyboardCode.value)) { els.keyboardCode.value = keyboardCodeValue(keyboardSlot); renderAll(); schedulePersist(); setStatus('Cargado'); } else setStatus('Código inválido'); }
+
+function renderKeyboardControls() { els.keyboardStatus.textContent = `Teclado: ${keyboardSlot.sampleName}${keyboardSlot.loading ? ' · ' + keyboardSlot.loading : ''}`; els.keyboardCode.value = keyboardCodeValue(keyboardSlot); els.keyboardVolumeMode.value = keyboardSlot.volumeMode === 'vel' ? 'vel' : 'fixed'; els.keyboardControls.innerHTML = `
+  ${row('k','volume','Vol',0,1,.01,keyboardSlot.volume,'keyboard')}
+  ${row('k','transpose','Tran',-24,24,1,keyboardSlot.transpose,'keyboard')}
+  ${row('k','filter','Filt',300,12000,20,keyboardSlot.filter,'keyboard')}
+`; els.keyboardControls.querySelectorAll('input[data-param]').forEach(input => { const shown = input.nextElementSibling; input.oninput = () => { keyboardSlot[input.dataset.param] = Number(input.value); if (shown) shown.textContent = ['volume','transpose'].includes(input.dataset.param) ? Number(input.value).toFixed(2) : Math.round(Number(input.value)); keyboardSlot.code = keyboardCodeValue(keyboardSlot); els.keyboardCode.value = keyboardSlot.code; schedulePersist(); }; }); }
+
+function renderAll() { renderStatus(); renderLists(); renderKeyboardControls(); renderFocus(); }
+function renderStatus() {}
+function renderFocus() { document.querySelectorAll('.card').forEach(card => { const kind = card.dataset.kind; const uid = Number(card.dataset.uid); card.classList.toggle('focused', kind === 'granular' ? uid === focusedGranularId : uid === focusedLoopId); }); }
+
+function row(group, param, label, min, max, step, value, target) { const shown = ['volume','start','end','rate','pan','position'].includes(param) ? Number(value).toFixed(2) : Math.round(value); return `<div class="row"><label>${label}</label><input data-group="${group}" data-target="${target}" data-param="${param}" type="range" min="${min}" max="${max}" step="${step}" value="${value}"><span>${shown}</span></div>`; }
+function cardTemplate(kind, slot, code, controls) { const active = kind === 'granular' ? slot.uid === focusedGranularId : slot.uid === focusedLoopId; return `<div class="card ${active ? 'focused' : ''}" data-kind="${kind}" data-uid="${slot.uid}"><button class="deleteBtn danger" data-action="delete">×</button><div class="cardName">${kind === 'granular' ? 'Granular' : 'Loop'} ${slot.uid} · ${escapeHtml(slot.sampleName)}${slot.loading ? ' · ' + escapeHtml(slot.loading) : ''}</div><div class="toolRow"><input class="codeInput" data-action="code" value="${escapeHtml(code)}" placeholder="CÓDIGO"><button data-action="focus" class="alt">Activo</button><button data-action="play">${slot.playing ? 'Stop' : 'Play'}</button>${kind === 'granular' ? `<select data-action="motor"><option value="A" ${slot.activeMotor === 'A' ? 'selected' : ''}>A</option><option value="B" ${slot.activeMotor === 'B' ? 'selected' : ''}>B</option></select>` : ''}</div><canvas class="wave" data-action="wave" width="560" height="122"></canvas><div data-action="controls">${controls}</div></div>`; }
+
+function renderLists() { els.granularCount.textContent = String(granulars.length); els.loopCount.textContent = String(loops.length); els.granularList.innerHTML = granulars.map(renderGranularCard).join('') || emptyBox(''); els.loopList.innerHTML = loops.map(renderLoopCard).join('') || emptyBox(''); granulars.forEach(bindGranularCard); loops.forEach(bindLoopCard); }
+function emptyBox(text) { return text ? `<div class="name" style="padding:8px 2px;">${escapeHtml(text)}</div>` : ''; }
+function renderGranularCard(slot) { return cardTemplate('granular', slot, granularCode(slot), `${row(slot.uid,'volume','Vol',0,1,.01,slot.volume,'granular')}${row(slot.uid,'grain','Grano',25,900,5,slot.motors[slot.activeMotor].grain,'granular')}${row(slot.uid,'density','Dens',2,45,1,slot.motors[slot.activeMotor].density,'granular')}${row(slot.uid,'spread','Spr',0,.7,.01,slot.motors[slot.activeMotor].spread,'granular')}${row(slot.uid,'filter','Filt',200,8000,20,slot.motors[slot.activeMotor].filter,'granular')}${row(slot.uid,'position','Pos',0,1,.001,slot.motors[slot.activeMotor].position,'granular')}`); }
+function renderLoopCard(slot) { return cardTemplate('loop', slot, loopCode(slot), `${row(slot.uid,'volume','Vol',0,1,.01,slot.volume,'loop')}${row(slot.uid,'start','In',0,1,.001,slot.start,'loop')}${row(slot.uid,'end','Out',0,1,.001,slot.end,'loop')}${row(slot.uid,'rate','Rate',.25,2.5,.01,slot.rate,'loop')}${row(slot.uid,'filter','Filt',180,12000,20,slot.filter,'loop')}${row(slot.uid,'pan','Pan',-1,1,.01,slot.pan,'loop')}`); }
+
+function bindGranularCard(slot) {
+  const el = document.querySelector(`.card[data-kind="granular"][data-uid="${slot.uid}"]`); if (!el) return;
+  bindDeleteHold(el.querySelector('[data-action="delete"]'), 'granular', slot.uid);
+  el.querySelector('[data-action="focus"]').onclick = () => { focusedGranularId = slot.uid; renderAll(); schedulePersist(); };
+  el.querySelector('[data-action="play"]').onclick = () => toggleGranular(slot);
+  el.querySelector('[data-action="motor"]').onchange = e => { slot.activeMotor = e.target.value === 'B' ? 'B' : 'A'; slot.code = granularCode(slot); updateCodeInput('granular', slot); renderAll(); schedulePersist(); };
+  const codeInput = el.querySelector('[data-action="code"]');
+  codeInput.onkeydown = e => { if (e.key === 'Enter') applyCodeToSlot('granular', slot, codeInput.value); };
+  codeInput.onblur = () => applyCodeToSlot('granular', slot, codeInput.value);
+  const wave = el.querySelector('[data-action="wave"]');
+  wave.onpointerdown = evt => startGranularMove(evt, slot.uid);
+  wave.onpointermove = evt => moveGranular(evt, slot.uid);
+  wave.onpointerup = wave.onpointercancel = () => dragState.gran.delete(slot.uid);
+  bindRanges(el, 'granular', slot);
+  drawGranular(slot);
+}
+function bindLoopCard(slot) {
+  const el = document.querySelector(`.card[data-kind="loop"][data-uid="${slot.uid}"]`); if (!el) return;
+  bindDeleteHold(el.querySelector('[data-action="delete"]'), 'loop', slot.uid);
+  el.querySelector('[data-action="focus"]').onclick = () => { focusedLoopId = slot.uid; renderAll(); schedulePersist(); };
+  el.querySelector('[data-action="play"]').onclick = () => toggleLoop(slot);
+  const codeInput = el.querySelector('[data-action="code"]');
+  codeInput.onkeydown = e => { if (e.key === 'Enter') applyCodeToSlot('loop', slot, codeInput.value); };
+  codeInput.onblur = () => applyCodeToSlot('loop', slot, codeInput.value);
+  const wave = el.querySelector('[data-action="wave"]');
+  wave.onpointerdown = evt => startLoopMove(evt, slot.uid);
+  wave.onpointermove = evt => moveLoop(evt, slot.uid);
+  wave.onpointerup = wave.onpointercancel = () => dragState.loop.delete(slot.uid);
+  bindRanges(el, 'loop', slot);
+  drawLoop(slot);
+}
+function bindRanges(el, kind, slot) { el.querySelectorAll('input[data-param]').forEach(input => { const shown = input.nextElementSibling; input.onpointerdown = () => ensureAudio(); input.oninput = () => { const v = Number(input.value); if (kind === 'granular') { if (input.dataset.param === 'volume') slot.volume = v; else slot.motors[slot.activeMotor][input.dataset.param] = v; slot.code = granularCode(slot); } else { slot[input.dataset.param] = v; slot.code = loopCode(slot); } if (shown) shown.textContent = ['volume','start','end','rate','pan','position'].includes(input.dataset.param) ? v.toFixed(2) : Math.round(v); if (kind === 'granular' && input.dataset.param === 'density') restartGranular(slot); if (kind === 'loop' && ['start','end'].includes(input.dataset.param)) restartLoop(slot); else if (kind === 'loop') updateLoopNode(slot); updateCodeInput(kind, slot); schedulePersist(); }; }); }
+function updateCodeInput(kind, slot) { const card = document.querySelector(`.card[data-kind="${kind}"][data-uid="${slot.uid}"]`); if (!card) return; const input = card.querySelector('[data-action="code"]'); if (input) input.value = kind === 'granular' ? granularCode(slot) : loopCode(slot); }
+
+function snapshotGranular(slot) { return { uid:slot.uid, code:slot.code || granularCode(slot), sampleName:slot.sampleName, sampleData:slot.sampleData, playing:slot.playing, volume:slot.volume, activeMotor:slot.activeMotor, motors:{ A:{...slot.motors.A}, B:{...slot.motors.B} } }; }
+function snapshotLoop(slot) { return { uid:slot.uid, code:slot.code || loopCode(slot), sampleName:slot.sampleName, sampleData:slot.sampleData, playing:slot.playing, volume:slot.volume, start:slot.start, end:slot.end, rate:slot.rate, filter:slot.filter, pan:slot.pan }; }
+function snapshotKeyboard() { return { code:keyboardSlot.code || keyboardCodeValue(keyboardSlot), sampleName:keyboardSlot.sampleName, sampleData:keyboardSlot.sampleData, volumeMode:keyboardSlot.volumeMode, volume:keyboardSlot.volume, transpose:keyboardSlot.transpose, filter:keyboardSlot.filter }; }
+
+function removeSlot(kind, uid) { if (kind === 'granular') { const i = granulars.findIndex(x => x.uid === uid); if (i >= 0) { stopGranular(granulars[i]); granulars.splice(i,1); if (focusedGranularId === uid) focusedGranularId = granulars[0]?.uid ?? null; } } else { const i = loops.findIndex(x => x.uid === uid); if (i >= 0) { stopLoop(loops[i]); loops.splice(i,1); if (focusedLoopId === uid) focusedLoopId = loops[0]?.uid ?? null; } } renderAll(); schedulePersist(); }
+
+async function fileToDataUrl(file) { return new Promise((resolve, reject) => { const r = new FileReader(); r.onload = () => resolve(r.result); r.onerror = reject; r.readAsDataURL(file); }); }
+async function decodeDataUrl(dataUrl) { ensureAudio(); const response = await fetch(dataUrl); const arr = await response.arrayBuffer(); return ctx.decodeAudioData(arr); }
+function escapeHtml(text) { return String(text).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+(async () => {
+  localStorage.removeItem(APP_KEY);
+  renderAll();
+  buildKeyboard();
+  renderAll();
+})();
+</script>
+</body>
+</html>
