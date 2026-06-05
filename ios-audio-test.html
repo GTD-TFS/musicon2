@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>iOS Audio Test</title>
+<style>
+body{font-family:system-ui;background:#070b0d;color:#eef7f3;margin:0;padding:12px}button{display:block;width:100%;margin:8px 0;padding:14px;border-radius:10px;border:1px solid #405259;background:#202b30;color:white;font-size:18px}.log{white-space:pre-wrap;border:1px solid #314148;border-radius:10px;padding:10px;min-height:80px;color:#9cafad}audio{width:100%;margin:8px 0}
+</style>
+</head>
+<body>
+<h3>iOS Audio Test</h3>
+<button id="htmlBtn">1. HTML Audio beep</button>
+<audio id="htmlAudio" controls playsinline></audio>
+<button id="webOscBtn">2. WebAudio oscillator</button>
+<button id="webBufBtn">3. WebAudio buffer</button>
+<button id="resetBtn">Reset audio context</button>
+<div class="log" id="log">---</div>
+<script>
+let ctx=null;
+const logEl=document.getElementById('log');
+function log(msg){logEl.textContent=new Date().toLocaleTimeString()+" · "+msg+"\n"+logEl.textContent;}
+function wavDataUrl(){
+  const sr=44100, dur=.8, freq=660, len=Math.floor(sr*dur);
+  const buffer=new ArrayBuffer(44+len*2);
+  const v=new DataView(buffer);
+  function str(o,s){for(let i=0;i<s.length;i++)v.setUint8(o+i,s.charCodeAt(i));}
+  str(0,'RIFF'); v.setUint32(4,36+len*2,true); str(8,'WAVE'); str(12,'fmt ');
+  v.setUint32(16,16,true); v.setUint16(20,1,true); v.setUint16(22,1,true); v.setUint32(24,sr,true); v.setUint32(28,sr*2,true); v.setUint16(32,2,true); v.setUint16(34,16,true); str(36,'data'); v.setUint32(40,len*2,true);
+  for(let i=0;i<len;i++){const s=Math.sin(2*Math.PI*freq*i/sr)*0.8; v.setInt16(44+i*2, s*32767, true);}
+  let bin=''; new Uint8Array(buffer).forEach(b=>bin+=String.fromCharCode(b));
+  return 'data:audio/wav;base64,'+btoa(bin);
+}
+const dataUrl=wavDataUrl();
+document.getElementById('htmlAudio').src=dataUrl;
+function ac(){ if(!ctx){const AC=window.AudioContext||window.webkitAudioContext; ctx=new AC(); log('created ctx '+ctx.state+' sr='+ctx.sampleRate);} return ctx; }
+async function resume(){const c=ac(); if(c.state!=='running') await c.resume(); log('ctx '+c.state+' t='+c.currentTime.toFixed(3)); return c;}
+document.getElementById('htmlBtn').onclick=async()=>{try{const a=document.getElementById('htmlAudio'); a.currentTime=0; await a.play(); log('HTML play ok');}catch(e){log('HTML error '+e.name+' '+e.message);}};
+document.getElementById('webOscBtn').onclick=async()=>{try{const c=await resume(); const o=c.createOscillator(); const g=c.createGain(); const now=c.currentTime; o.frequency.value=880; g.gain.setValueAtTime(0,now); g.gain.linearRampToValueAtTime(1,now+.03); g.gain.setValueAtTime(1,now+.7); g.gain.linearRampToValueAtTime(0,now+1); o.connect(g); g.connect(c.destination); o.start(now); o.stop(now+1.05); log('osc sent');}catch(e){log('osc error '+e.name+' '+e.message);}};
+document.getElementById('webBufBtn').onclick=async()=>{try{const c=await resume(); const sr=c.sampleRate, len=Math.floor(sr*.8), b=c.createBuffer(1,len,sr), d=b.getChannelData(0); for(let i=0;i<len;i++)d[i]=Math.sin(2*Math.PI*440*i/sr)*0.9; const s=c.createBufferSource(); const g=c.createGain(); g.gain.value=1; s.buffer=b; s.connect(g); g.connect(c.destination); s.start(0); log('buffer sent');}catch(e){log('buffer error '+e.name+' '+e.message);}};
+document.getElementById('resetBtn').onclick=()=>{try{if(ctx)ctx.close();}catch(e){} ctx=null; log('reset');};
+log('ready');
+</script>
+</body>
+</html>
