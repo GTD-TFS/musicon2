@@ -147,21 +147,24 @@ function ensureAudio() {
     master.connect(ctx.destination);
   }
   if (ctx.state === 'suspended') ctx.resume();
-  unlockAudio();
   return true;
 }
 
-function unlockAudio() {
-  if (!ctx || !master) return;
+async function unlockAudio() {
+  if (!ensureAudio() || !ctx || !master) return false;
   try {
+    if (ctx.state === 'suspended') await ctx.resume();
     const source = ctx.createBufferSource();
     const gain = ctx.createGain();
     source.buffer = ctx.createBuffer(1, 1, ctx.sampleRate);
     gain.gain.value = 0;
     source.connect(gain);
     gain.connect(master);
-    source.start(0);
-  } catch (_) {}
+    source.start(ctx.currentTime);
+    return ctx.state === 'running';
+  } catch (_) {
+    return ctx && ctx.state === 'running';
+  }
 }
 
 document.body.addEventListener('pointerdown', () => ensureAudio(), { passive:true });
@@ -420,7 +423,7 @@ function bindGranularCard(slot) {
   const el = document.querySelector(`.card[data-kind="granular"][data-uid="${slot.uid}"]`); if (!el) return;
   bindDeleteHold(el.querySelector('[data-action="delete"]'), 'granular', slot.uid);
   el.querySelector('[data-action="focus"]').onclick = () => { focusedGranularId = slot.uid; renderAll(); schedulePersist(); };
-  el.querySelector('[data-action="play"]').onclick = () => toggleGranular(slot);
+  el.querySelector('[data-action="play"]').onclick = async () => toggleGranular(slot);
   el.querySelector('[data-action="motor"]').onchange = e => { slot.activeMotor = e.target.value === 'B' ? 'B' : 'A'; slot.code = granularCode(slot); renderAll(); schedulePersist(); };
   const codeInput = el.querySelector('[data-action="code"]');
   codeInput.onkeydown = e => { if (e.key === 'Enter') applyCodeToSlot('granular', slot, codeInput.value); };
@@ -436,7 +439,7 @@ function bindLoopCard(slot) {
   const el = document.querySelector(`.card[data-kind="loop"][data-uid="${slot.uid}"]`); if (!el) return;
   bindDeleteHold(el.querySelector('[data-action="delete"]'), 'loop', slot.uid);
   el.querySelector('[data-action="focus"]').onclick = () => { focusedLoopId = slot.uid; renderAll(); schedulePersist(); };
-  el.querySelector('[data-action="play"]').onclick = () => toggleLoop(slot);
+  el.querySelector('[data-action="play"]').onclick = async () => toggleLoop(slot);
   const codeInput = el.querySelector('[data-action="code"]');
   codeInput.onkeydown = e => { if (e.key === 'Enter') applyCodeToSlot('loop', slot, codeInput.value); };
   codeInput.onblur = () => applyCodeToSlot('loop', slot, codeInput.value);
@@ -564,7 +567,7 @@ function applyCodeToSlot(kind, slot, code) {
   setStatus('Cargado');
 }
 
-function toggleGranular(slot) { if (!slot.buffer) return; if (!ensureAudio()) return; slot.playing = !slot.playing; if (slot.playing) startGranular(slot); else stopGranular(slot); renderAll(); schedulePersist(); }
+async function toggleGranular(slot) { if (!slot.buffer) return; if (!await unlockAudio()) { setStatus('Toca otra vez Play'); return; } slot.playing = !slot.playing; if (slot.playing) startGranular(slot); else stopGranular(slot); renderAll(); schedulePersist(); }
 function startGranular(slot) {
   if (!ctx || !slot.buffer) return;
   stopGranular(slot);
@@ -579,7 +582,7 @@ function startGranular(slot) {
 function stopGranular(slot) { const t = granularTimers.get(slot.uid); if (t) clearTimeout(t); granularTimers.delete(slot.uid); }
 function restartGranular(slot) { if (!slot.playing) return; stopGranular(slot); startGranular(slot); }
 
-function toggleLoop(slot) { if (!slot.buffer) return; if (!ensureAudio()) return; slot.playing = !slot.playing; if (slot.playing) startLoop(slot); else stopLoop(slot); renderAll(); schedulePersist(); }
+async function toggleLoop(slot) { if (!slot.buffer) return; if (!await unlockAudio()) { setStatus('Toca otra vez Play'); return; } slot.playing = !slot.playing; if (slot.playing) startLoop(slot); else stopLoop(slot); renderAll(); schedulePersist(); }
 function startLoop(slot) {
   if (!ctx || !slot.buffer) return;
   stopLoop(slot);
@@ -624,7 +627,7 @@ function buildKeyboard() {
     key.className = 'key' + (name.includes('#') ? ' black' : '');
     key.textContent = name;
     key.onpointerdown = async evt => {
-      await ensureAudio();
+      if (!await unlockAudio()) return;
       if (!keyboardSlot.buffer) return;
       key.classList.add('down');
       const v = keyboardSlot.volumeMode === 'vel' ? clamp(0.55 + Math.random() * .35, 0, 1) : keyboardSlot.volume;
@@ -665,7 +668,7 @@ function bindGranularCard(slot) {
   const el = document.querySelector(`.card[data-kind="granular"][data-uid="${slot.uid}"]`); if (!el) return;
   bindDeleteHold(el.querySelector('[data-action="delete"]'), 'granular', slot.uid);
   el.querySelector('[data-action="focus"]').onclick = () => { focusedGranularId = slot.uid; renderAll(); schedulePersist(); };
-  el.querySelector('[data-action="play"]').onclick = () => toggleGranular(slot);
+  el.querySelector('[data-action="play"]').onclick = async () => toggleGranular(slot);
   el.querySelector('[data-action="motor"]').onchange = e => { slot.activeMotor = e.target.value === 'B' ? 'B' : 'A'; slot.code = granularCode(slot); updateCodeInput('granular', slot); renderAll(); schedulePersist(); };
   const codeInput = el.querySelector('[data-action="code"]');
   codeInput.onkeydown = e => { if (e.key === 'Enter') applyCodeToSlot('granular', slot, codeInput.value); };
@@ -681,7 +684,7 @@ function bindLoopCard(slot) {
   const el = document.querySelector(`.card[data-kind="loop"][data-uid="${slot.uid}"]`); if (!el) return;
   bindDeleteHold(el.querySelector('[data-action="delete"]'), 'loop', slot.uid);
   el.querySelector('[data-action="focus"]').onclick = () => { focusedLoopId = slot.uid; renderAll(); schedulePersist(); };
-  el.querySelector('[data-action="play"]').onclick = () => toggleLoop(slot);
+  el.querySelector('[data-action="play"]').onclick = async () => toggleLoop(slot);
   const codeInput = el.querySelector('[data-action="code"]');
   codeInput.onkeydown = e => { if (e.key === 'Enter') applyCodeToSlot('loop', slot, codeInput.value); };
   codeInput.onblur = () => applyCodeToSlot('loop', slot, codeInput.value);
